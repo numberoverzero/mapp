@@ -45,23 +45,24 @@ window.mapp = function () {
         if (!promise) {
             promise = mapp.cache[url] = window.superagent
                 .get(url).type("text/html")
-                .catch(()=>{delete mapp.cache[url];});
+                .then(response=> {
+                    if (response.ok) {
+                        history.pushState(null, "", url);
+                        mapp.container.innerHTML = response.text;
+                        // using setTimeout gives the html a change to render.
+                        // otherwise, eg. alert() would pop up over the previous page.
+                        setTimeout(()=>{
+                            [].slice.call(
+                                mapp.container.getElementsByTagName("script")
+                            ).forEach(script=>eval(script.textContent));
+                        }, 0);
+                    } else {
+                        delete mapp.cache[url];
+                    }
+                });
         }
-        promise.then(response=> {
-            if (response.ok) {
-                history.pushState(null, "", url);
-                mapp.container.innerHTML = response.text;
-                // using setTimeout gives the html a change to render.
-                // otherwise, eg. alert() would pop up over the previous page.
-                setTimeout(()=>{
-                    [].slice.call(
-                        mapp.container.getElementsByTagName("script")
-                    ).forEach(script=>eval(script.textContent));
-                }, 0);
-            } else {
-                delete mapp.cache[url];
-            }
-        });
+        promise
+        .catch(()=>{delete mapp.cache[url];})
     }
     mapp.go = go;
 

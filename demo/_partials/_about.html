@@ -2,7 +2,16 @@
     <h3>
     This is now the _about page!
     </h3>
-    <a href="../baked/index.html">click here to go back to the main page.</a>
+    <a href="../html/index.html">click here to go back to the main page.</a>
 
-    <script>alert("about loaded");</script>
+    <script>
+        console.log("this script is from _about partial.");
+        console.log("this is called once when the partial is first loaded");
+
+        function onPartialLoaded(e) {
+            // TODO
+            console.log("this should be connected to mapp as an event handler, once on init");
+            console.log("probably something like `mapp.on('about', 'load', onPartialLoaded)`");
+        }
+    </script>
 </p>
