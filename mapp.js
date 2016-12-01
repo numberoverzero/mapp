@@ -40,35 +40,51 @@ window.mapp = function () {
         console.log(e.state);
     }
 
-    function go(url) {
-        var promise = mapp.cache[url];
-        if (!promise) {
-            promise = mapp.cache[url] = window.superagent
-                .get(url).type("text/html")
-                .then(response=> {
-                    if (response.ok) {
+    function go(url, cacheErrors) {
+        cacheErrors = typeof cacheErrors === "undefined" ? false : cacheErrors;
+        var onError = cacheErrors ? ()=>{} : ()=>{delete mapp.cache[url];};
+
+        var page = mapp.cache[url];
+        if (!page) {
+            // cache miss - get partial, swap html, load scripts.
+            page = mapp.cache[url] = {
+                promise: window.superagent.get(url).type("text/html"),
+                rendered: false,
+            };
+            page.promise = page.promise
+            .then(response=> {
+                if (response.ok) {
+                    mapp.container.innerHTML = response.text;
+                    // using setTimeout gives the html a change to render.
+                    // otherwise, eg. alert() would pop up over the previous page.
+                    setTimeout(() => {
+                        [].slice.call(
+                            mapp.container.getElementsByTagName("script")
+                        ).forEach(script => eval(script.textContent));
                         history.pushState(null, "", url);
-                        // TODO | html and script loading need to be separated.
-                        // TODO | only the first load needs to swap html + eval scripts
-                        // TODO | every subsequent load needs to swap html
-                        mapp.container.innerHTML = response.text;
-                        // using setTimeout gives the html a change to render.
-                        // otherwise, eg. alert() would pop up over the previous page.
-                        setTimeout(()=>{
-                            [].slice.call(
-                                mapp.container.getElementsByTagName("script")
-                            ).forEach(script=>eval(script.textContent));
-                        }, 0);
-                    } else {
-                        delete mapp.cache[url];
-                    }
-                });
+                        page.rendered = true;
+                    }, 0);
+                } else {
+                    onError();
+                }
+                return response;
+            });
+            page.promise.catch(onError);
         } else {
-            // TODO | only swap html here, and fire whatever
-            // TODO | event is used to tell the page it's loading
+            // cache hit - one of two cases:
+            //   1. go() before the first request finished.  Still pending, don't re-render html.
+            //   2. go() after the first request finished.  Request complete, re-render html.
+            page.promise
+            .then(response=> {
+                if (page.rendered) {
+                    mapp.container.innerHTML = response.text;
+                    history.pushState(null, "", url);
+                } else {
+                    // intentionally empty - initial .then() is still waiting.
+                    // when the response comes it will render html, don't do anything.
+                }
+            });
         }
-        promise
-        .catch(()=>{delete mapp.cache[url];})
     }
     mapp.go = go;
 
