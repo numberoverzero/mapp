@@ -48,6 +48,9 @@ window.mapp = function () {
                 .then(response=> {
                     if (response.ok) {
                         history.pushState(null, "", url);
+                        // TODO | html and script loading need to be separated.
+                        // TODO | only the first load needs to swap html + eval scripts
+                        // TODO | every subsequent load needs to swap html
                         mapp.container.innerHTML = response.text;
                         // using setTimeout gives the html a change to render.
                         // otherwise, eg. alert() would pop up over the previous page.
@@ -60,6 +63,9 @@ window.mapp = function () {
                         delete mapp.cache[url];
                     }
                 });
+        } else {
+            // TODO | only swap html here, and fire whatever
+            // TODO | event is used to tell the page it's loading
         }
         promise
         .catch(()=>{delete mapp.cache[url];})
