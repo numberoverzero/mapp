@@ -78,7 +78,7 @@ window.mapp = function () {
             setTimeout(() => {
                 [].slice.call(
                     mapp.container.getElementsByTagName("script")
-                ).forEach(script => eval(script.textContent));
+                ).forEach(script => window.eval(script.textContent));
                 resolve(page);
             }, 0);
         });
@@ -86,11 +86,14 @@ window.mapp = function () {
 
 
     mapp.go = function(url) {
-        mapp.getPage(url)
+        return mapp.getPage(url)
             .then(renderHtml)
             .then(loadScripts)
-            .then(()=>history.pushState(null, "", mapp.rewrite(url, "display")))
-            .catch(console.warn);
+            .then(page=>{
+                history.pushState(null, "", mapp.rewrite(url, "display"));
+                return page;
+            })
+        ;
     };
 
 
@@ -117,12 +120,8 @@ window.mapp = function () {
 
 
     window.onpopstate = () => {
-        console.log("popstate");
-        mapp.getPage(document.location.pathname)
-            .then(renderHtml)
-            .catch(console.warn);
+        mapp.getPage(document.location.pathname).then(renderHtml);
     };
-
 
     return mapp;
 }();
