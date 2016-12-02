@@ -6,31 +6,62 @@ window.mapp = function () {
         pageCache: {}
     };
 
-    function getPage(url) {
+    mapp.setupRewrites = function(origin, root, partials) {
+        // "https://foo.com", "", "/_"
+        //     https://foo.com/hello/world.html --> https://foo.com/_/hello/world.html
+        //     world.html --> https:/foo.com/_/world.html
+
+        // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions#Using_parentheses
+        const escapeRegExp = string => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        // strips out origin, root, partial directory, and leading slash
+        const partialRegex = new RegExp(
+                  "^(?:" + escapeRegExp(origin) + ")?" +
+                  "(?:" + escapeRegExp(root) + ")?" +
+                  "(?:" + escapeRegExp(partials) + ")?"+
+                  "/?" + // always drop leading slash
+                  "(.*)$" // this is what we care about
+              ),
+              partialOnly = url => url.replace(partialRegex, "$1"),
+              partialFor = url => origin + root + partials + "/" + partialOnly(url),
+              displayFor = url => origin + root + "/" + partialOnly(url);
+
+        mapp.rewrite = function(url, mode) {
+            switch(mode) {
+                case "cache": return partialOnly(url);
+                case "partial": return partialFor(url);
+                case "display": return displayFor(url);
+                default: return url;
+            }
+        };
+        mapp.sameOrigin = url => url.indexOf(origin) === 0;
+    };
+
+
+    mapp.getPage = function(url) {
+        const cacheKey = mapp.rewrite(url, "cache");
         // cache hit
-        if (mapp.pageCache[url]) return mapp.pageCache[url];
+        if (mapp.pageCache[cacheKey]) return mapp.pageCache[cacheKey];
 
         // cache miss - return promise that resolves when page is loaded.
-        return mapp.pageCache[url] = new Promise((resolve, reject)=>{
+        return mapp.pageCache[cacheKey] = new Promise((resolve, reject)=>{
             // on non-200 blow away the cache
-            const onError = () => {
-                delete mapp.pageCache[url];
-                reject();
-            };
-            const page = {
-                response: null,
-                scriptLoadingPromise: null
-            };
-            window.superagent.get(url).type("text/html")
-            .then(response => {
-                if (response.ok) {
-                    page.response = response;
-                    resolve(page);
-                } else onError();
-            })
-            .catch(onError);
+            const page = {response: null, scriptLoadingPromise: null},
+                  onError = () => {
+                      delete mapp.pageCache[cacheKey];
+                      reject();
+                  };
+            superagent.get(mapp.rewrite(url, "partial")).type("text/html")
+                .then(response => {
+                    if (response.ok) {
+                        page.response = response;
+                        resolve(page);
+                    } else onError();
+                })
+                .catch(onError);
         });
-    }
+    };
+
 
     function renderHtml(page) {
         mapp.container.innerHTML = page.response.text;
@@ -39,7 +70,7 @@ window.mapp = function () {
 
     function loadScripts(page) {
         // already loading/loaded scripts
-        if (page.scriptLoadingPromise) {return page.scriptLoadingPromise}
+        if (page.scriptLoadingPromise) return page.scriptLoadingPromise;
 
         return page.scriptLoadingPromise = new Promise(resolve=> {
             // using setTimeout gives the html a chance to render.
@@ -53,18 +84,22 @@ window.mapp = function () {
         });
     }
 
-    function which(e) {
-        e = e || window.event;
-        return null === e.which ? e.button : e.which;
-    }
 
-    function sameOrigin(href) {
-        let origin = location.protocol + '//' + location.hostname;
-        if (location.port) origin += ':' + location.port;
-        return (href && (0 === href.indexOf(origin)));
-    }
+    mapp.go = function(url) {
+        mapp.getPage(url)
+            .then(renderHtml)
+            .then(loadScripts)
+            .then(()=>history.pushState(null, "", mapp.rewrite(url, "display")))
+            .catch(console.warn);
+    };
 
-    function onclick(e) {
+
+    // Hook up event handlers to intercept navigation
+    // ----------------------------------------------
+
+
+    const which = e => {e = e || window.event; return e.which === null ? e.button: e.which};
+    window.addEventListener("click", e => {
         if (which(e) !== 1) return;
         if (e.metaKey || e.ctrlKey || e.shiftKey) return;
         if (e.defaultPrevented) return;
@@ -74,29 +109,20 @@ window.mapp = function () {
         if (!el || "A" !== el.nodeName) return;
         if (el.hasAttribute('download') || el.getAttribute('rel') === 'external') return;
         if (el.target) return;
-        if (!sameOrigin(el.href)) return;
+        if (!mapp.sameOrigin(el.href)) return;
 
         e.preventDefault();
-        mapp.go(el.pathname + el.search + (el.hash || ""));
-    }
+        mapp.go(el.href);
+    }, false);
 
-    function onpopstate() {
-        getPage(document.location.pathname)
-        .then(renderHtml)
-        .catch(console.warn);
-    }
 
-    function go(url) {
-        getPage(url)
-        .then(renderHtml)
-        .then(loadScripts)
-        .then(()=>history.pushState(null, "", url))
-        .catch(console.warn);
-    }
-    mapp.go = go;
+    window.onpopstate = () => {
+        console.log("popstate");
+        mapp.getPage(document.location.pathname)
+            .then(renderHtml)
+            .catch(console.warn);
+    };
 
-    window.addEventListener("click", onclick, false);
-    window.onpopstate = onpopstate;
 
     return mapp;
 }();
