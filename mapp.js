@@ -7,9 +7,21 @@ window.mapp = function () {
     };
 
     mapp.setupRewrites = function(origin, root, partials) {
-        // "https://foo.com", "", "/_"
-        //     https://foo.com/hello/world.html --> https://foo.com/_/hello/world.html
-        //     world.html --> https:/foo.com/_/world.html
+        /*
+         *  arguments are almost always: (location.origin, "", "/_")
+         *
+         *  never refer to partials in urls.  Never refer to container pages from partials.
+         *  for example, _/about.html should point to "index.html" not "../index.html".
+         *
+         *    https://my.site.com <-- location.origin
+         *    ├── _               <-- partials are stored here in "_"
+         *    │   ├── about.html
+         *    │   ├── index.html
+         *    │   └── login.html
+         *    ├── about.html      <-- container pages, pre-loaded with corresponding partial
+         *    ├── index.html
+         *    └── login.html
+         */
 
         // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions#Using_parentheses
         const escapeRegExp = string => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
