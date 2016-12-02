@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ABOUT.HTML</title>
+
+    <link rel="stylesheet" href="vendor/css/normalize.min.css">
+    <link rel="stylesheet" href="vendor/css/milligram.min.css">
+    <link rel="stylesheet" href="css/demo.css">
+</head>
+
+<body>
+(served from about.html)
+<main id="content">
+    <h3>This is the about.html main content.</h3>
+    <p><a href="index.html"> click here to go to the index page.</a></p>
+    <p><a href="https://google.com">external link: google</a></p>
+    <p><a href="login.html">click here to go to the login page.</a></p>
+
+    <script>
+        console.log("this script is from _about full.");
+        console.log("this is called once when the full page is first loaded");
+
+        function onPartialLoaded(e) {
+            // TODO
+            console.log("this should be connected to mapp as an event handler, once on init");
+            console.log("probably something like `mapp.on('about', 'load', onPartialLoaded)`");
+        }
+    </script>
+</main>
+<script src="vendor/js/superagent.min.js"></script>
+<script src="../mapp.js"></script>
+<script type="application/javascript">
+    mapp.container = document.getElementById("content");
+    mapp.setupRewrites(location.origin, "/mapp/demo", "/_");
+</script>
+
+</body>
+
+</html>
