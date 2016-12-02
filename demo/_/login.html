@@ -1,6 +1,15 @@
 <h3>This is the login.html partial content.</h3>
 <p><a href="login.html">click here to go to the login page (same page)</a></p>
 <p><a href="https://google.com">external link: google</a></p>
+
+<button onclick="goIndex()">Login PARTIAL</button>
+
 <script>
-    console.log("_login.html partial");
+    console.log("login.html partial");
+    function goIndex() {
+        console.log("goIndex PARTIAL");
+        // window.location = "/index.html";
+        mapp.go("index.html");
+    }
+    window.goPartialIndex = goIndex;
 </script>
