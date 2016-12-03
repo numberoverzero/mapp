@@ -63,9 +63,10 @@ window.mapp = function () {
             if (!mapp.dynamicRoutes) return null;
             url = U(url).replace(partialRegex, "$1");
             const len = mapp.dynamicRoutes.length;
-            for (let route, index = 0; index < len; index++) {
+            for (let route, match, index = 0; index < len; index++) {
                 route = mapp.dynamicRoutes[index];
-                if (url.match(route.pattern)) return route;
+                if (match = url.match(route.pattern))
+                    return {pattern: route.pattern, to: route.to, match: match};
             }
             return null;
         };
@@ -87,9 +88,9 @@ window.mapp = function () {
 
         mapp.match = url => {
             // most uses are matching the current url anyway
-            url = U(url || document.location);
+            url = url || document.location;
             const route = dynamicRouteFor(url);
-            return route ? url.replace(partialRegex, "$1").match(route.pattern) : null;
+            return route ? route.match : null;
         };
 
 
