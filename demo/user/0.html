@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>INDEX.HTML</title>
+
+    <link rel="stylesheet" href="../vendor/css/normalize.min.css">
+    <link rel="stylesheet" href="../vendor/css/milligram.min.css">
+    <link rel="stylesheet" href="../css/demo.css">
+</head>
+
+<body>
+(served from user/0.html)
+<main id="content">
+    <h3>This is the user/0.html main content.</h3>
+    <p>The requested username is <code id="userName"></code>.</p>
+</main>
+<script src="../vendor/js/superagent.min.js"></script>
+<script src="../../mapp.js"></script>
+<script type="application/javascript">
+    console.log("full user/0.html start");
+    mapp.container = document.getElementById("content");
+    mapp.setupRewrites(location.origin, "/mapp/demo", "/_");
+
+    // inner script requires mapp to be loaded :(
+    mapp.ready
+    .then(()=>{
+        console.log("0.html mapp.ready");
+        const match = mapp.match();
+        if (match) {
+            console.log("parsed user is: " + match[1]);
+            document.getElementById("userName").innerHTML = match[1];
+        } else {
+            console.warn("failed to parse user while at url " + document.location);
+        }
+    })
+    .catch(e=>{
+        console.warn("mapp not ready");
+        console.warn(e);
+    });
+</script>
+
+</body>
+
+</html>

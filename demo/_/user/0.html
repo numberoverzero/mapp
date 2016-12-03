@@ -1,0 +1,20 @@
+<h3>This is the user/0.html PARTIAL content.</h3>
+<p>The requested username is <code id="userName"></code>.</p>
+<script>
+    console.log("partial user/0.html start");
+    mapp.ready
+        .then(()=>{
+            console.log("0.html mapp.ready");
+            const match = mapp.match();
+            if (match) {
+                console.log("parsed user is: " + match[1]);
+                document.getElementById("userName").innerHTML = match[1];
+            } else {
+                console.warn("failed to parse user while at url " + document.location);
+            }
+        })
+        .catch(e=>{
+            console.warn("mapp not ready");
+            console.warn(e);
+        });
+</script>
