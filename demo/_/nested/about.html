@@ -1,0 +1,16 @@
+<h3>This is the NESTED about.html partial content.</h3>
+<p><a href="../index.html"> click here to go to the index page.</a></p>
+<p><a href="https://google.com">external link: google</a></p>
+<p><a href="../login.html">click here to go to the login page.</a></p>
+<p><a href="index.html"> NESTED index.html</a></p>
+
+<script>
+console.log("this script is from NESTED _about partial.");
+console.log("this is called once when the partial is first loaded");
+
+function onPartialLoaded(e) {
+    // TODO
+    console.log("this should be connected to mapp as an event handler, once on init");
+    console.log("probably something like `mapp.on('about', 'load', onPartialLoaded)`");
+}
+</script>
