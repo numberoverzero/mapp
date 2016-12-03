@@ -114,10 +114,10 @@
             compileRoutes(JSON.parse(serializedLocalRoutes));
             onReady();
         } else {
-            superagent.get(rewrites.displayUrl(dynamicRoutesUrl)).accept("json")
-            .then(response => {
-                if (!response.ok) return;
-                const routes = response.body;
+            rq(rewrites.displayUrl(dynamicRoutesUrl), {r:"json"})
+            .then(xhr => {
+                if (xhr.status != 200) return;
+                const routes = xhr.response;
                 localStorage.setItem("_dynamicRoutes", JSON.stringify(routes));
                 compileRoutes(routes);
             })
@@ -137,10 +137,10 @@
         return pageCache[cacheKey] = new Promise((resolve, reject)=>{
             const page = {response: null, scriptLoadingPromise: null},
                   onError = () => {delete pageCache[cacheKey]; reject();};
-            superagent.get(rewrites.partialUrl(url)).type("text/html")
-            .then(response => {
-                if (response.ok) {
-                    page.response = response;
+            rq(rewrites.partialUrl(url), {})
+            .then(xhr => {
+                if (xhr.status == 200) {
+                    page.xhr = xhr;
                     resolve(page);
                 } else onError();})
             .catch(onError);
@@ -149,7 +149,7 @@
 
 
     function renderHtml(page) {
-        _mapp.container.innerHTML = page.response.text;
+        _mapp.container.innerHTML = page.xhr.response;
         return page;
     }
 
