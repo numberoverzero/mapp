@@ -56,10 +56,12 @@ window.mapp = function () {
               "(.*)$" // this is what we care about
           );
 
+        // helper to ensure url is a string
+        const U = url => "" + (url || "");
+
         const dynamicRouteFor = function (url) {
             if (!mapp.dynamicRoutes) return null;
-            // most uses are matching the current url anyway
-            url = ("" + (url || document.location)).replace(partialRegex, "$1");
+            url = U(url).replace(partialRegex, "$1");
             const len = mapp.dynamicRoutes.length;
             for (let route, index = 0; index < len; index++) {
                 route = mapp.dynamicRoutes[index];
@@ -69,7 +71,7 @@ window.mapp = function () {
         };
 
         const partialOf = function (url, dynamic) {
-            url = url.replace(partialRegex, "$1");
+            url = U(url).replace(partialRegex, "$1");
             if (!dynamic || !mapp.dynamicRoutes) return url;
             const route = dynamicRouteFor(url);
             return route? route.to : url;
@@ -81,10 +83,11 @@ window.mapp = function () {
             partialUrl: url=>origin + root + partials + "/" + partialOf(url, true),
             displayUrl: url=>origin + root + "/" + partialOf(url, false)
         };
-        mapp.sameOrigin = url => url.indexOf(origin) === 0;
+        mapp.sameOrigin = url => (""+url).indexOf(origin) === 0;
 
         mapp.match = url => {
-            url = url || ("" + document.location);
+            // most uses are matching the current url anyway
+            url = U(url || document.location);
             const route = dynamicRouteFor(url);
             return route ? url.replace(partialRegex, "$1").match(route.pattern) : null;
         };
@@ -126,7 +129,6 @@ window.mapp = function () {
 
 
     mapp.getPage = function(url) {
-        url = "" + url;
         const cacheKey = mapp.rewrite.cache(url);
 
         // cache hit
