@@ -1,20 +1,23 @@
 "use strict";
 
-window.mapp = function () {
-    const mapp = {
-        container: null,
-        pageCache: {},
-        dynamicRoutes: null
-    };
+(function (exports) {
+    const _mapp = {};
+    const pageCache = {};
+    const rewrites = {};
+    let dynamicRoutes;
+    let sameOrigin;
+
+    // set by the caller
+    _mapp.container = null;
 
     // hold a reference to the promise's resolve cb to manually complete
     let onReady;
-    mapp.ready = new Promise(resolve=>{
+    _mapp.ready = new Promise(resolve=>{
         // Insulate external function from any intermediate return values
         onReady = ()=> resolve()
     });
 
-    mapp.setupRewrites = function(origin, root) {
+    _mapp.setupRewrites = function(origin, root) {
         /*
          *  arguments are almost always: (location.origin, "")
          *  routes can include a map of regex -> fixed url, such as:
@@ -60,11 +63,11 @@ window.mapp = function () {
         const U = url => "" + (url || "");
 
         const dynamicRouteFor = function (url) {
-            if (!mapp.dynamicRoutes) return null;
+            if (!dynamicRoutes) return null;
             url = U(url).replace(partialRegex, "$1");
-            const len = mapp.dynamicRoutes.length;
+            const len = dynamicRoutes.length;
             for (let route, match, index = 0; index < len; index++) {
-                route = mapp.dynamicRoutes[index];
+                route = dynamicRoutes[index];
                 if (match = url.match(route.pattern))
                     return {pattern: route.pattern, to: route.to, match: match};
             }
@@ -73,20 +76,19 @@ window.mapp = function () {
 
         const partialOf = function (url, dynamic) {
             url = U(url).replace(partialRegex, "$1");
-            if (!dynamic || !mapp.dynamicRoutes) return url;
+            if (!dynamic || !dynamicRoutes) return url;
             const route = dynamicRouteFor(url);
             return route? route.to : url;
         };
 
-        mapp.rewrite = {
-            cache: url=>partialOf(url, true),
-            // http://jsben.ch/#/1o8xK faster than [x, y, z].join("")
-            partialUrl: url=>origin + root + partials + "/" + partialOf(url, true),
-            displayUrl: url=>origin + root + "/" + partialOf(url, false)
-        };
-        mapp.sameOrigin = url => (""+url).indexOf(origin) === 0;
+        rewrites.cache = url=>partialOf(url, true);
+        // http://jsben.ch/#/1o8xK faster than [x, y, z].join("")
+        rewrites.partialUrl = url=>origin + root + partials + "/" + partialOf(url, true);
+        rewrites.displayUrl = url=>origin + root + "/" + partialOf(url, false);
 
-        mapp.match = url => {
+        sameOrigin = url => (""+url).indexOf(origin) === 0;
+
+        _mapp.match = url => {
             // most uses are matching the current url anyway
             url = url || document.location;
             const route = dynamicRouteFor(url);
@@ -98,29 +100,25 @@ window.mapp = function () {
         // ---------------------------------------------------------
 
         function compileRoutes(routes) {
-            mapp.dynamicRoutes = [];
+            dynamicRoutes = [];
             Object.keys(routes).forEach(pattern => {
-                mapp.dynamicRoutes.push({
+                dynamicRoutes.push({
                     pattern: new RegExp(pattern),
                     to: routes[pattern]
                 });
             });
         }
 
-        const serializedLocalRoutes = localStorage.getItem("mapp.dynamicRoutes");
+        const serializedLocalRoutes = localStorage.getItem("_dynamicRoutes");
         if (serializedLocalRoutes) {
             compileRoutes(JSON.parse(serializedLocalRoutes));
             onReady();
-        // }
-        // mapp.dynamicRoutes = localStorage.getItem("mapp.dynamicRoutes");
-        // if (mapp.dynamicRoutes) {
-        //     onReady();
         } else {
-            superagent.get(mapp.rewrite.displayUrl(dynamicRoutesUrl)).accept("json")
+            superagent.get(rewrites.displayUrl(dynamicRoutesUrl)).accept("json")
             .then(response => {
                 if (!response.ok) return;
                 const routes = response.body;
-                localStorage.setItem("mapp.dynamicRoutes", JSON.stringify(routes));
+                localStorage.setItem("_dynamicRoutes", JSON.stringify(routes));
                 compileRoutes(routes);
             })
             .then(onReady)
@@ -129,17 +127,17 @@ window.mapp = function () {
     };
 
 
-    mapp.getPage = function(url) {
-        const cacheKey = mapp.rewrite.cache(url);
+    _mapp.getPage = function(url) {
+        const cacheKey = rewrites.cache(url);
 
         // cache hit
-        if (mapp.pageCache[cacheKey]) return mapp.pageCache[cacheKey];
+        if (pageCache[cacheKey]) return pageCache[cacheKey];
 
         // cache miss - return promise that resolves when page is loaded.
-        return mapp.pageCache[cacheKey] = new Promise((resolve, reject)=>{
+        return pageCache[cacheKey] = new Promise((resolve, reject)=>{
             const page = {response: null, scriptLoadingPromise: null},
-                  onError = () => {delete mapp.pageCache[cacheKey]; reject();};
-            superagent.get(mapp.rewrite.partialUrl(url)).type("text/html")
+                  onError = () => {delete pageCache[cacheKey]; reject();};
+            superagent.get(rewrites.partialUrl(url)).type("text/html")
             .then(response => {
                 if (response.ok) {
                     page.response = response;
@@ -151,7 +149,7 @@ window.mapp = function () {
 
 
     function renderHtml(page) {
-        mapp.container.innerHTML = page.response.text;
+        _mapp.container.innerHTML = page.response.text;
         return page;
     }
 
@@ -164,7 +162,7 @@ window.mapp = function () {
             // otherwise, eg. alert() would pop up over the previous page.
             setTimeout(() => {
                 [].slice.call(
-                    mapp.container.getElementsByTagName("script")
+                    _mapp.container.getElementsByTagName("script")
                 ).forEach(script => window.eval(script.textContent));
                 resolve(page);
             }, 0);
@@ -172,10 +170,10 @@ window.mapp = function () {
     }
 
 
-    mapp.go = function(url) {
-        return mapp.getPage(url)
+    _mapp.go = function(url) {
+        return _mapp.getPage(url)
             .then(page=>{
-                history.pushState(null, "", mapp.rewrite.displayUrl(url));
+                history.pushState(null, "", rewrites.displayUrl(url));
                 return page;})
             .then(renderHtml)
             .then(loadScripts)
@@ -198,16 +196,15 @@ window.mapp = function () {
         if (!el || "A" !== el.nodeName) return;
         if (el.hasAttribute('download') || el.getAttribute('rel') === 'external') return;
         if (el.target) return;
-        if (!mapp.sameOrigin(el.href)) return;
+        if (!sameOrigin(el.href)) return;
 
         e.preventDefault();
-        mapp.go(el.href);
+        _mapp.go(el.href);
     }, false);
 
 
     window.onpopstate = () => {
-        mapp.getPage(document.location.pathname).then(renderHtml);
+        _mapp.getPage(document.location.pathname).then(renderHtml);
     };
-
-    return mapp;
-}();
+    exports.mapp = _mapp;
+}(window));
