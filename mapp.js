@@ -3,74 +3,146 @@
 window.mapp = function () {
     const mapp = {
         container: null,
-        pageCache: {}
+        pageCache: {},
+        dynamicRoutes: null
     };
 
-    mapp.setupRewrites = function(origin, root, partials) {
+    // hold a reference to the promise's resolve cb to manually complete
+    let onReady;
+    mapp.ready = new Promise(resolve=>{
+        // Insulate external function from any intermediate return values
+        onReady = ()=> resolve()
+    });
+
+    mapp.setupRewrites = function(origin, root) {
         /*
-         *  arguments are almost always: (location.origin, "", "/_")
+         *  arguments are almost always: (location.origin, "")
+         *  routes can include a map of regex -> fixed url, such as:
+         *    {
+         *        "^users\/[^\/]+\/?$": "users/0.html",
+         *        "^users\/[^\/]+\/game\/[^\/]+\/?$": "users/0/game/1.html"
+         *    }
+         *
+         *  this would tell mapp to load partials for any url matching /users/[^/]+/? from /users/0.html
+         *
          *
          *  never refer to partials in urls.  Never refer to container pages from partials.
          *  for example, _/about.html should point to "index.html" not "../index.html".
          *
-         *    https://my.site.com <-- location.origin
-         *    ├── _               <-- partials are stored here in "_"
+         *    https://my.site.com     <-- location.origin
+         *    ├── _                   <-- partials are stored here in "_"
          *    │   ├── about.html
          *    │   ├── index.html
          *    │   └── login.html
-         *    ├── about.html      <-- container pages, pre-loaded with corresponding partial
-         *    ├── index.html
-         *    └── login.html
+         *    ├── _dynamicRoutes.json <-- Declares any regex-based routes
+         *    ├── about.html       }
+         *    ├── index.html        } <-- container pages, pre-loaded with corresponding partial
+         *    └── login.html       }
          */
+        origin = (typeof origin === "undefined") ? location.origin : origin;
+        root = (typeof root === "undefined") ? "" : root;
+        const partials = "/_",
+              dynamicRoutesUrl = "_dynamicRoutes.json";
 
         // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions#Using_parentheses
         const escapeRegExp = string => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
         // strips out origin, root, partial directory, and leading slash
         const partialRegex = new RegExp(
-                  "^(?:" + escapeRegExp(origin) + ")?" +
-                  "(?:" + escapeRegExp(root) + ")?" +
-                  "(?:" + escapeRegExp(partials) + ")?"+
-                  "/?" + // always drop leading slash
-                  "(.*)$" // this is what we care about
-              ),
-              partialOnly = url => url.replace(partialRegex, "$1"),
-              partialFor = url => origin + root + partials + "/" + partialOnly(url),
-              displayFor = url => origin + root + "/" + partialOnly(url);
+              "^(?:" + escapeRegExp(origin) + ")?" +
+              "(?:" + escapeRegExp(root) + ")?" +
+              "(?:" + escapeRegExp(partials) + ")?"+
+              "/?" + // always drop leading slash
+              "(.*)$" // this is what we care about
+          );
 
-        mapp.rewrite = function(url, mode) {
-            switch(mode) {
-                case "cache": return partialOnly(url);
-                case "partial": return partialFor(url);
-                case "display": return displayFor(url);
-                default: return url;
+        const dynamicRouteFor = function (url) {
+            if (!mapp.dynamicRoutes) return null;
+            // most uses are matching the current url anyway
+            url = ("" + (url || document.location)).replace(partialRegex, "$1");
+            const len = mapp.dynamicRoutes.length;
+            for (let route, index = 0; index < len; index++) {
+                route = mapp.dynamicRoutes[index];
+                if (url.match(route.pattern)) return route;
             }
+            return null;
+        };
+
+        const partialOf = function (url, dynamic) {
+            url = url.replace(partialRegex, "$1");
+            if (!dynamic || !mapp.dynamicRoutes) return url;
+            const route = dynamicRouteFor(url);
+            return route? route.to : url;
+        };
+
+        mapp.rewrite = {
+            cache: url=>partialOf(url, true),
+            // http://jsben.ch/#/1o8xK faster than [x, y, z].join("")
+            partialUrl: url=>origin + root + partials + "/" + partialOf(url, true),
+            displayUrl: url=>origin + root + "/" + partialOf(url, false)
         };
         mapp.sameOrigin = url => url.indexOf(origin) === 0;
+
+        mapp.match = url => {
+            url = url || ("" + document.location);
+            const route = dynamicRouteFor(url);
+            return route ? url.replace(partialRegex, "$1").match(route.pattern) : null;
+        };
+
+
+        // Load dynamic rewrites from localStorage, fall back to url
+        // ---------------------------------------------------------
+
+        function compileRoutes(routes) {
+            mapp.dynamicRoutes = [];
+            Object.keys(routes).forEach(pattern => {
+                mapp.dynamicRoutes.push({
+                    pattern: new RegExp(pattern),
+                    to: routes[pattern]
+                });
+            });
+        }
+
+        const serializedLocalRoutes = localStorage.getItem("mapp.dynamicRoutes");
+        if (serializedLocalRoutes) {
+            compileRoutes(JSON.parse(serializedLocalRoutes));
+            onReady();
+        // }
+        // mapp.dynamicRoutes = localStorage.getItem("mapp.dynamicRoutes");
+        // if (mapp.dynamicRoutes) {
+        //     onReady();
+        } else {
+            superagent.get(mapp.rewrite.displayUrl(dynamicRoutesUrl)).accept("json")
+            .then(response => {
+                if (!response.ok) return;
+                const routes = response.body;
+                localStorage.setItem("mapp.dynamicRoutes", JSON.stringify(routes));
+                compileRoutes(routes);
+            })
+            .then(onReady)
+            .catch(onReady);  // call failed, tried enough to be "ready"
+        }
     };
 
 
     mapp.getPage = function(url) {
-        const cacheKey = mapp.rewrite(url, "cache");
+        url = "" + url;
+        const cacheKey = mapp.rewrite.cache(url);
+
         // cache hit
         if (mapp.pageCache[cacheKey]) return mapp.pageCache[cacheKey];
 
         // cache miss - return promise that resolves when page is loaded.
         return mapp.pageCache[cacheKey] = new Promise((resolve, reject)=>{
-            // on non-200 blow away the cache
             const page = {response: null, scriptLoadingPromise: null},
-                  onError = () => {
-                      delete mapp.pageCache[cacheKey];
-                      reject();
-                  };
-            superagent.get(mapp.rewrite(url, "partial")).type("text/html")
-                .then(response => {
-                    if (response.ok) {
-                        page.response = response;
-                        resolve(page);
-                    } else onError();
-                })
-                .catch(onError);
+                  onError = () => {delete mapp.pageCache[cacheKey]; reject();};
+            superagent.get(mapp.rewrite.partialUrl(url)).type("text/html")
+            .then(response => {
+                if (response.ok) {
+                    page.response = response;
+                    resolve(page);
+                } else onError();})
+            .catch(onError);
         });
     };
 
@@ -99,12 +171,11 @@ window.mapp = function () {
 
     mapp.go = function(url) {
         return mapp.getPage(url)
+            .then(page=>{
+                history.pushState(null, "", mapp.rewrite.displayUrl(url));
+                return page;})
             .then(renderHtml)
             .then(loadScripts)
-            .then(page=>{
-                history.pushState(null, "", mapp.rewrite(url, "display"));
-                return page;
-            })
         ;
     };
 
