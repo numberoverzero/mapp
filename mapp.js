@@ -1,3 +1,4 @@
+"use strict";
 /*
  *  routes in _dynamicRoutes.json can include a map of regex -> fixed url, such as:
  *    {
@@ -22,12 +23,8 @@
  *    └── login.html       }
  */
 
-mapp = (() => {
-    "use strict";
+(() => {
     let
-        // set externally
-        container = null,
-
         // loaded from localStorage or /_dynamicRoutes.json
         dynamicRoutes,
 
@@ -36,6 +33,7 @@ mapp = (() => {
         ready = new Promise((resolve, reject)=> {onReady=resolve; onNotReady=reject})
     ;
     const
+        container = document.getElementById("mapp-container"),
         origin = location.origin,
         partials = "_",
         dynamicRoutesUrl = "_dynamicRoutes.json",
@@ -198,10 +196,7 @@ mapp = (() => {
 
     // expose public api
     // -----------------
-    return {
-        get container () {return container},
-        set container (v) {container = v},
-        //container: container,
+    window.mapp = {
         getPage: getPage,
         go: go,
         match: match,
