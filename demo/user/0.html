@@ -17,12 +17,11 @@
     <h3>This is the user/0.html main content.</h3>
     <p>The requested username is <code id="userName"></code>.</p>
 </main>
-<script src="../../rq.js"></script>
-<script src="../../mapp.js"></script>
+<script src="../js/rq.js"></script>
+<script src="../js/mapp.js"></script>
 <script type="application/javascript">
     console.log("full user/0.html start");
     mapp.container = document.getElementById("content");
-    mapp.setupRewrites(location.origin, "/mapp/demo");
 
     // inner script requires mapp to be loaded :(
     mapp.ready

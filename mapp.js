@@ -1,5 +1,29 @@
 "use strict";
 
+/*
+ *  routes in _dynamicRoutes.json can include a map of regex -> fixed url, such as:
+ *    {
+ *        "^users\/[^\/]+\/?$": "users/0.html",
+ *        "^users\/[^\/]+\/game\/[^\/]+\/?$": "users/0/game/1.html"
+ *    }
+ *
+ *  this would tell mapp to load partials for any url matching /users/[^/]+/? from /users/0.html
+ *
+ *
+ *  never refer to partials in urls.  Never refer to container pages from partials.
+ *  for example, _/about.html should point to "index.html" not "../index.html".
+ *
+ *    https://my.site.com     <-- location.origin
+ *    ├── _                   <-- partials are stored here in "_"
+ *    │   ├── about.html
+ *    │   ├── index.html
+ *    │   └── login.html
+ *    ├── _dynamicRoutes.json <-- Declares any regex-based routes
+ *    ├── about.html       }
+ *    ├── index.html        } <-- container pages, pre-loaded with corresponding partial
+ *    └── login.html       }
+ */
+
 (function (exports) {
     const _mapp = {};
     const pageCache = {};
@@ -12,119 +36,88 @@
 
     // hold a reference to the promise's resolve cb to manually complete
     let onReady;
-    _mapp.ready = new Promise(resolve=>{
-        // Insulate external function from any intermediate return values
-        onReady = ()=> resolve()
-    });
-
-    _mapp.setupRewrites = function(origin, root) {
-        /*
-         *  arguments are almost always: (location.origin, "")
-         *  routes can include a map of regex -> fixed url, such as:
-         *    {
-         *        "^users\/[^\/]+\/?$": "users/0.html",
-         *        "^users\/[^\/]+\/game\/[^\/]+\/?$": "users/0/game/1.html"
-         *    }
-         *
-         *  this would tell mapp to load partials for any url matching /users/[^/]+/? from /users/0.html
-         *
-         *
-         *  never refer to partials in urls.  Never refer to container pages from partials.
-         *  for example, _/about.html should point to "index.html" not "../index.html".
-         *
-         *    https://my.site.com     <-- location.origin
-         *    ├── _                   <-- partials are stored here in "_"
-         *    │   ├── about.html
-         *    │   ├── index.html
-         *    │   └── login.html
-         *    ├── _dynamicRoutes.json <-- Declares any regex-based routes
-         *    ├── about.html       }
-         *    ├── index.html        } <-- container pages, pre-loaded with corresponding partial
-         *    └── login.html       }
-         */
-        origin = (typeof origin === "undefined") ? location.origin : origin;
-        root = (typeof root === "undefined") ? "" : root;
-        const partials = "/_",
-              dynamicRoutesUrl = "_dynamicRoutes.json";
-
-        // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions#Using_parentheses
-        const escapeRegExp = string => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-        // strips out origin, root, partial directory, and leading slash
-        const partialRegex = new RegExp(
-              "^(?:" + escapeRegExp(origin) + ")?" +
-              "(?:" + escapeRegExp(root) + ")?" +
-              "(?:" + escapeRegExp(partials) + ")?"+
-              "/?" + // always drop leading slash
-              "(.*)$" // this is what we care about
-          );
-
-        // helper to ensure url is a string
-        const U = url => "" + (url || "");
-
-        const dynamicRouteFor = function (url) {
-            if (!dynamicRoutes) return null;
-            url = U(url).replace(partialRegex, "$1");
-            const len = dynamicRoutes.length;
-            for (let route, match, index = 0; index < len; index++) {
-                route = dynamicRoutes[index];
-                if (match = url.match(route.pattern))
-                    return {pattern: route.pattern, to: route.to, match: match};
-            }
-            return null;
-        };
-
-        const partialOf = function (url, dynamic) {
-            url = U(url).replace(partialRegex, "$1");
-            if (!dynamic || !dynamicRoutes) return url;
-            const route = dynamicRouteFor(url);
-            return route? route.to : url;
-        };
-
-        rewrites.cache = url=>partialOf(url, true);
-        // http://jsben.ch/#/1o8xK faster than [x, y, z].join("")
-        rewrites.partialUrl = url=>origin + root + partials + "/" + partialOf(url, true);
-        rewrites.displayUrl = url=>origin + root + "/" + partialOf(url, false);
-
-        sameOrigin = url => (""+url).indexOf(origin) === 0;
-
-        _mapp.match = url => {
-            // most uses are matching the current url anyway
-            url = url || document.location;
-            const route = dynamicRouteFor(url);
-            return route ? route.match : null;
-        };
+    _mapp.ready = new Promise(resolve=> onReady=resolve);
 
 
-        // Load dynamic rewrites from localStorage, fall back to url
-        // ---------------------------------------------------------
+    const origin = location.origin,
+          root = "",
+          partials = "/_",
+          dynamicRoutesUrl = "_dynamicRoutes.json";
 
-        function compileRoutes(routes) {
-            dynamicRoutes = [];
-            Object.keys(routes).forEach(pattern => {
-                dynamicRoutes.push({
-                    pattern: new RegExp(pattern),
-                    to: routes[pattern]
-                });
-            });
+    // strips out origin, root, partials directory, and leading slash
+    const partialRegex = new RegExp(
+          "^(?:" + origin + ")?" +
+          "(?:" + root + ")?" +
+          "(?:" + partials + ")?"+
+          "/?" + // always drop leading slash
+          "(.*)$" // this is what we care about
+      );
+
+    // helper to ensure url is a string
+    const U = url => "" + (url || "");
+
+    const dynamicRouteFor = function (url) {
+        if (!dynamicRoutes) return null;
+        url = U(url).replace(partialRegex, "$1");
+        const len = dynamicRoutes.length;
+        for (let route, match, index = 0; index < len; index++) {
+            route = dynamicRoutes[index];
+            if (match = url.match(route.pattern))
+                return {pattern: route.pattern, to: route.to, match: match};
         }
-
-        const serializedLocalRoutes = localStorage.getItem("_dynamicRoutes");
-        if (serializedLocalRoutes) {
-            compileRoutes(JSON.parse(serializedLocalRoutes));
-            onReady();
-        } else {
-            rq(rewrites.displayUrl(dynamicRoutesUrl), {r:"json"})
-            .then(xhr => {
-                if (xhr.status != 200) return;
-                const routes = xhr.response;
-                localStorage.setItem("_dynamicRoutes", JSON.stringify(routes));
-                compileRoutes(routes);
-            })
-            .then(onReady)
-            .catch(onReady);  // call failed, tried enough to be "ready"
-        }
+        return null;
     };
+
+    const partialOf = function (url, dynamic) {
+        url = U(url).replace(partialRegex, "$1");
+        if (!dynamic || !dynamicRoutes) return url;
+        const route = dynamicRouteFor(url);
+        return route? route.to : url;
+    };
+
+    rewrites.cache = url=>partialOf(url, true);
+    // http://jsben.ch/#/1o8xK faster than [x, y, z].join("")
+    rewrites.partialUrl = url=>origin + root + partials + "/" + partialOf(url, true);
+    rewrites.displayUrl = url=>origin + root + "/" + partialOf(url, false);
+
+    sameOrigin = url => U(url).indexOf(origin) === 0;
+
+    _mapp.match = url => {
+        // most uses are matching the current url anyway
+        url = url || document.location;
+        const route = dynamicRouteFor(url);
+        return route ? route.match : null;
+    };
+
+
+    // Load dynamic rewrites from localStorage, fall back to url
+    // ---------------------------------------------------------
+
+    function compileRoutes(routes) {
+        dynamicRoutes = [];
+        Object.keys(routes).forEach(pattern => {
+            dynamicRoutes.push({
+                pattern: new RegExp(pattern),
+                to: routes[pattern]
+            });
+        });
+    }
+
+    const serializedLocalRoutes = localStorage.getItem("_dynamicRoutes");
+    if (serializedLocalRoutes) {
+        compileRoutes(JSON.parse(serializedLocalRoutes));
+        onReady();
+    } else {
+        rq(rewrites.displayUrl(dynamicRoutesUrl), {r:"json"})
+        .then(xhr => {
+            if (xhr.status != 200) return;
+            const routes = xhr.response;
+            localStorage.setItem("_dynamicRoutes", JSON.stringify(routes));
+            compileRoutes(routes);
+        })
+        .then(onReady)
+        .catch(onReady);  // call failed, tried enough to be "ready"
+    }
 
 
     _mapp.getPage = function(url) {
