@@ -2,19 +2,9 @@
 <p>The requested username is <code id="userName"></code>.</p>
 <script>
     console.log("partial user/0.html start");
-    mapp.ready
-        .then(()=>{
-            console.log("0.html mapp.ready");
-            const match = mapp.match();
-            if (match) {
-                console.log("parsed user is: " + match[1]);
-                document.getElementById("userName").innerHTML = match[1];
-            } else {
-                console.warn("failed to parse user while at url " + document.location);
-            }
-        })
-        .catch(e=>{
-            console.warn("mapp not ready");
-            console.warn(e);
-        });
+    // TODO | currently the username disappears after onpopstate
+    // TODO | this **needs** to be in some kind of onPageReload
+    // TODO | that gets registered (so mapp can unload/filter delegates)
+    u = (a,b)=> (a=a.split(/:?\/+/))[+b===b||~(b=a.indexOf(b))?b+1:b];
+    document.getElementById("userName").innerHTML = u(document.location+"", "user");
 </script>

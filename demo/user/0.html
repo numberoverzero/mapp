@@ -18,21 +18,8 @@
     <p>The requested username is <code id="userName"></code>.</p>
     <script>
         console.log("full user/0.html start");
-        mapp.ready
-            .then(()=>{
-                console.log("0.html mapp.ready");
-                const match = mapp.match();
-                if (match) {
-                    console.log("parsed user is: " + match[1]);
-                    document.getElementById("userName").innerHTML = match[1];
-                } else {
-                    console.warn("failed to parse user while at url " + document.location);
-                }
-            })
-            .catch(e=>{
-                console.warn("mapp not ready");
-                console.warn(e);
-            });
+        u = (a,b)=> (a=a.split(/:?\/+/))[+b===b||~(b=a.indexOf(b))?b+1:b];
+        document.getElementById("userName").innerHTML = u(document.location, 1);
     </script>
 </main>
 <script src="../js/rq.js"></script>
