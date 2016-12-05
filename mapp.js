@@ -22,7 +22,6 @@
  *    ├── index.html        } <-- container pages, pre-loaded with corresponding partial
  *    └── login.html       }
  */
-
 (() => {
     let
         // loaded from localStorage or /_dynamicRoutes.json
@@ -36,12 +35,11 @@
         container = document.getElementById("mapp-container"),
         origin = location.origin,
         partials = "_",
-        dynamicRoutesUrl = "_dynamicRoutes.json",
 
         // strip out origin, partials, and leading slashes
         partialRegex = new RegExp(
             "/?" + "^(?:" + origin + ")?" +
-            "/?" + "(?:" + partials + ")?"+
+            "/?" + "(?:" + partials + "/)?"+
             "/?" + "(.*)$" // this is what we care about
         ),
 
@@ -81,32 +79,25 @@
         urlForDisplay = url=>origin + "/" + urlFragment(url, false);
 
 
-    // on init load dynamicRoutes
-    // --------------------------
-    function compileRoutes(routes) {
-        dynamicRoutes = Object.keys(routes).map(
-            pattern => ({pattern: new RegExp(pattern), to: routes[pattern]})
-        ); onReady();
-    }
+    // on init load dynamicRoutes, prefetch
+    // ------------------------------------
+    rq(urlForDisplay("_dynamicRoutes.json"), {r:"json"})
+    .then(xhr => {
+        dynamicRoutes = Object.keys(xhr.response).map(
+            pattern => ({pattern: new RegExp(pattern), to: xhr.response[pattern]})
+        );
+        onReady();
+    }).catch(()=>onNotReady());
 
-    const localRoutes = localStorage.getItem("_dynamicRoutes");
-    if (localRoutes) compileRoutes(JSON.parse(localRoutes));
-    else {
-        rq(urlForDisplay(dynamicRoutesUrl), {r:"json"})
-        .then(xhr => {
-            if (xhr.status == 200) {
-                localStorage.setItem("_dynamicRoutes", JSON.stringify(xhr.response));
-                compileRoutes(xhr.response);
-            } else onNotReady();
-        }).catch(()=>onNotReady());
-    }
+    rq(urlForDisplay("_prefetchManifest.json"), {r:"json"})
+    .then(xhr => xhr.response.forEach(getPage));
 
 
     // ===========
     //  Rendering
     // ===========
     function renderHtml(page) {
-        container.innerHTML = page.xhr.response;
+        container.innerHTML = page.response;
         return page;
     }
 
@@ -130,32 +121,17 @@
     // ============
     //  Public API
     // ============
-    function match(url) {
-        // most uses are matching the current url anyway
-        url = U(url || document.location);
-        const route = dynamicRouteFor(url);
-        return route ? route.match : null;
-    }
-
     const pageCache = {};
     function getPage(url) {
-        // returns a Promise
         const key = cacheKey(url);
 
         // cache hit
         if (pageCache[key]) return pageCache[key];
 
-        // cache miss - return promise that resolves when page is loaded.
-        return pageCache[key] = new Promise((resolve, reject)=>{
-            const page = {response: null, scriptLoadingPromise: null},
-                onError = () => {delete pageCache[key]; reject();};
+        return pageCache[key] = new Promise((resolve, reject) => {
             rq(urlOfPartial(url), {})
-                .then(xhr => {
-                    if (xhr.status == 200) {
-                        page.xhr = xhr;
-                        resolve(page);
-                    } else onError();
-                }).catch(onError);
+            .then(xhr => resolve({response: xhr.response}))
+            .catch(()=>pageCache[key]=[]._ && reject())
         });
     }
 
@@ -199,7 +175,6 @@
     window.mapp = {
         getPage: getPage,
         go: go,
-        match: match,
         ready: ready,
     };
 })();
