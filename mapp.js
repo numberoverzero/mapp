@@ -24,14 +24,18 @@
  */
 (() => {
     let
-        // loaded from localStorage or /_dynamicRoutes.json
-        dynamicRoutes,
-
         // hold references to the promise's callbacks to manually complete
         onReady, onNotReady,
         ready = new Promise((resolve, reject)=> {onReady=resolve; onNotReady=reject})
     ;
     const
+        // loaded from /_dynamicRoutes.json
+        dynamicRoutes = [],
+
+        // partials can register functions to execute when they're shown.
+        // also called when the page first loads.
+        partialShowHandlers = {},
+
         container = document.getElementById("mapp-container"),
         origin = location.origin,
         partials = "_",
@@ -83,8 +87,8 @@
     // ------------------------------------
     rq(urlForDisplay("_dynamicRoutes.json"), {r:"json"})
     .then(xhr => {
-        dynamicRoutes = Object.keys(xhr.response).map(
-            pattern => ({pattern: new RegExp(pattern), to: xhr.response[pattern]})
+        Object.keys(xhr.response).forEach(
+            pattern => dynamicRoutes.push({pattern: new RegExp(pattern), to: xhr.response[pattern]})
         );
         onReady();
     }).catch(()=>onNotReady());
@@ -93,9 +97,9 @@
     .then(xhr => xhr.response.forEach(getPage));
 
 
-    // ===========
-    //  Rendering
-    // ===========
+    // ==============
+    //  Page Loading
+    // ==============
     function renderHtml(page) {
         container.innerHTML = page.response;
         return page;
@@ -115,6 +119,13 @@
                 resolve(page);
             }, 0);
         });
+    }
+
+    function executePageHandler() {
+        // Get cache key for current page
+        // Get handler for cache key, or a noop if there's no handler
+        // Invoke the handler (or noop)
+        (partialShowHandlers[cacheKey(document.location)] || (()=>{}))();
     }
 
 
@@ -140,6 +151,11 @@
         .then(page=>{history.pushState(null, "", urlForDisplay(url)); return page})
         .then(renderHtml)
         .then(loadScripts)
+        .then(executePageHandler)
+    }
+
+    function addPartialShowHandler(handler) {
+        partialShowHandlers[cacheKey(document.location)] = handler;
     }
 
     // on init hook up event handlers
@@ -166,7 +182,10 @@
     }, false);
 
     window.onpopstate = () => {
-        getPage(document.location.pathname).then(renderHtml);
+        getPage(document.location.pathname)
+        .then(renderHtml)
+        .then(loadScripts)
+        .then(executePageHandler);
     };
 
 
@@ -176,5 +195,6 @@
         getPage: getPage,
         go: go,
         ready: ready,
+        onShowPage: addPartialShowHandler
     };
 })();
