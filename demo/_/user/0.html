@@ -1,10 +1,8 @@
 <h3>This is the user/0.html PARTIAL content.</h3>
 <p>The requested username is <code id="userName"></code>.</p>
 <script>
-    console.log("partial user/0.html start");
-    // TODO | currently the username disappears after onpopstate
-    // TODO | this **needs** to be in some kind of onPageReload
-    // TODO | that gets registered (so mapp can unload/filter delegates)
-    u = (a,b)=> (a=a.split(/:?\/+/))[+b===b||~(b=a.indexOf(b))?b+1:b];
-    document.getElementById("userName").innerHTML = u(document.location+"", "user");
+    u = (a,b)=> (a=(a+"").split(/:?\/+/))[+b===b||~(b=a.indexOf(b))?b+1:b];
+    mapp.onShowPage(() => {
+        document.getElementById("userName").innerHTML = u(document.location, "user");
+    });
 </script>
