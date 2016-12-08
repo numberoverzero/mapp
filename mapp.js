@@ -89,8 +89,7 @@
     .then(xhr => {
         Object.keys(xhr.response).forEach(
             pattern => dynamicRoutes.push({pattern: new RegExp(pattern), to: xhr.response[pattern]})
-        );
-        onReady();
+        ); onReady();
     }).catch(()=>onNotReady());
 
     rq(urlForDisplay("_prefetchManifest.json"), {r:"json"})
@@ -156,6 +155,8 @@
 
     function addPartialShowHandler(handler) {
         partialShowHandlers[cacheKey(document.location)] = handler;
+        // special case the initial page's handler since there's no popstate.
+        Object.keys(partialShowHandlers).length === 1 ? setTimeout(executePageHandler, 0) : 0;
     }
 
     // on init hook up event handlers
