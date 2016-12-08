@@ -15,7 +15,7 @@ rq = (u, opts, x) => {
     x.open(opts.m || "GET", u);
     x.responseType = opts.r || "";
     x.timeout = opts.t || 0;
-    Object.keys(x.h || 0).forEach(h => x.setRequestHeader(h, x.h[h]));
+    Object.keys(opts.h || 0).forEach(h => x.setRequestHeader(h, opts.h[h]));
 
     return new Promise((y,n) => {
         x.onreadystatechange = _=>{
