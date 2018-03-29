@@ -124,7 +124,9 @@
         // Get cache key for current page
         // Get handler for cache key, or a noop if there's no handler
         // Invoke the handler (or noop)
-        (partialShowHandlers[cacheKey(document.location)] || (()=>{}))();
+        (partialShowHandlers[cacheKey(document.location)] || (()=>{
+            console.log("no page handler for " + document.location);
+        }))();
     }
 
 
